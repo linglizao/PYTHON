@@ -1,0 +1,5 @@
+1.python 退出exit()
+2.python变量不需要定义，直接使用就行
+3.python 查关键字
+  import keyword
+  keyword.kwlist
