@@ -11,8 +11,9 @@
 import sys
 import os
 from PyQt5 import QtCore, QtGui, QtWidgets
-import xlrd3 as xlrd
-import xlwt
+from openpyxl import load_workbook
+#import xlrd3 as xlrd
+#import xlwt
 import numpy as np
 from xlutils.copy import copy
 
@@ -24,7 +25,30 @@ class reslt:
         self.pct2 = 0;
         self.output = '';
 
+#读取excel
+def handle_excel(excel_dir):
+    sheets_input = load_workbook(excel_dir)
+    sheets_total = sheets_input.sheetnames
+    for sheet_sel in sheets_input:
+        rows = sheet_sel.max_row
+        cols = sheet_sel.max_column
 
+        # 遍历数据
+        # ctype : 0 empty,1 string, 2 number, 3 date, 4 boolean, 5 error
+        for col in range(1,cols+1):
+            data_array = []
+            for row in range(1,rows+1):
+                if (int==type(sheet_sel.cell(row, col).value)) or (float==type(sheet_sel.cell(row, col).value)):
+                    data_array.append(sheet_sel.cell(row, col).value)
+            if len(data_array) > 0:
+                reslt.pct0 = np.percentile(data_array, 25)
+                reslt.pct1 = np.percentile(data_array, 50)
+                reslt.pct2 = np.percentile(data_array, 75)
+                reslt.output = str(reslt.pct1) + '(' + str(reslt.pct0) + ',' + str(reslt.pct2) + ')'
+                sheet_sel.cell(rows+1, col).value =  reslt.output
+                print(reslt.output)
+    os.remove(excel_dir)
+    sheets_input.save(excel_dir)
 
 class Ui_Form(object):
     def setupUi(self, Form):
@@ -80,40 +104,9 @@ class Ui_Form(object):
     def Calc_button_click(self):
         # 路径
         excel_dir = self.lineEdit.text()
-        # print(excel_dir)
-        sheets_input = xlrd.open_workbook(excel_dir)
-        sheets_output = copy(sheets_input)
-
-        #sheets数量
-        sheets_total = sheets_input.sheet_names()
-
-        for sheet_sel in sheets_total:
-            sheet_tmp = sheets_input.sheet_by_name(sheet_sel)
-            sheet_tmp_output = sheets_output.get_sheet(sheet_sel)
-            # 列数
-            ncols = sheet_tmp.ncols
-            # 行数
-            nrows = sheet_tmp.nrows
-            # 遍历数据
-            # ctype : 0 empty,1 string, 2 number, 3 date, 4 boolean, 5 error
-            data_array = []
-            for col in range(ncols-1):
-                for row in range(nrows-1):
-                    if 2 == sheet_tmp.cell(row, col).ctype:
-                        data_array.append(sheet_tmp.cell_value(row, col))
-                if len(data_array) > 0:
-                    reslt.pct0 = np.percentile(data_array, 25)
-                    reslt.pct1 = np.percentile(data_array, 50)
-                    reslt.pct2 = np.percentile(data_array, 75)
-                    reslt.output = str(reslt.pct1) + '(' + str(reslt.pct0) + ',' + str(reslt.pct2) + ')'
-                    sheet_tmp_output.write(nrows, col, reslt.output)
-
-            # 写入excel
-            os.remove(excel_dir)
-            sheets_output.save(excel_dir)
-
-            # 提示计算结果完成
-            QMessageBox.about(self, "标题", "关于对话框消息正文")
+        handle_excel(excel_dir)
+        # 提示计算结果完成
+        #QMessageBox.about(self, "标题", "关于对话框消息正文")
 
 if __name__=="__main__":
     app=QtWidgets.QApplication(sys.argv)
