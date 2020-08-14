@@ -12,10 +12,10 @@ import sys
 import os
 from PyQt5 import QtCore, QtGui, QtWidgets
 from openpyxl import load_workbook
-#import xlrd3 as xlrd
-#import xlwt
+
 import numpy as np
 from xlutils.copy import copy
+os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 
 #结构体定义
 class reslt:
@@ -25,30 +25,33 @@ class reslt:
         self.pct2 = 0;
         self.output = '';
 
-#读取excel
-def handle_excel(excel_dir):
-    sheets_input = load_workbook(excel_dir)
-    sheets_total = sheets_input.sheetnames
-    for sheet_sel in sheets_input:
-        rows = sheet_sel.max_row
-        cols = sheet_sel.max_column
 
-        # 遍历数据
-        # ctype : 0 empty,1 string, 2 number, 3 date, 4 boolean, 5 error
-        for col in range(1,cols+1):
-            data_array = []
-            for row in range(1,rows+1):
-                if (int==type(sheet_sel.cell(row, col).value)) or (float==type(sheet_sel.cell(row, col).value)):
-                    data_array.append(sheet_sel.cell(row, col).value)
-            if len(data_array) > 0:
-                reslt.pct0 = np.percentile(data_array, 25)
-                reslt.pct1 = np.percentile(data_array, 50)
-                reslt.pct2 = np.percentile(data_array, 75)
-                reslt.output = str(reslt.pct1) + '(' + str(reslt.pct0) + ',' + str(reslt.pct2) + ')'
-                sheet_sel.cell(rows+1, col).value =  reslt.output
-                print(reslt.output)
-    os.remove(excel_dir)
-    sheets_input.save(excel_dir)
+def handle_excel(sheet_sel):
+    print('handle_excel begin')
+    rows = sheet_sel.max_row
+    cols = sheet_sel.max_column
+    print(rows)
+    print(cols)
+
+    # 遍历数据
+    for col in range(1, cols + 1):
+        data_array = []
+        for row in range(1, rows + 1):
+            val_get = sheet_sel.cell(row, col).value
+            print(val_get)
+            if (int == type(val_get)) or (float == type(val_get)):
+                data_array.append(val_get)
+            elif (str == type(val_get)) and (val_get[0] != '0'):
+                if(True == val_get.replace(".", "").isdigit()):
+                    data_array.append(eval(val_get))
+        if len(data_array) > 0:
+            print("col calculate %d"%col)
+            reslt.pct0 = np.percentile(data_array, 25)
+            reslt.pct1 = np.percentile(data_array, 50)
+            reslt.pct2 = np.percentile(data_array, 75)
+            reslt.output = str(reslt.pct1) + '(' + str(reslt.pct0) + ',' + str(reslt.pct2) + ')'
+            sheet_sel.cell(rows + 1, col).value = reslt.output
+    print('handle_excel done')
 
 class Ui_Form(object):
     def setupUi(self, Form):
@@ -64,21 +67,22 @@ class Ui_Form(object):
         self.gridLayout.addWidget(self.Open, 0, 1, 1, 1)
         self.Open.clicked.connect(self.Open_button_click)
 
-
+        #文本输入框，输入要处理的文件
         self.lineEdit = QtWidgets.QLineEdit(Form)
         self.lineEdit.setObjectName("lineEdit")
         self.gridLayout.addWidget(self.lineEdit, 0, 0, 1, 1)
 
-
+        #复选框，是否选择AllSheets
         self.AllSheets = QtWidgets.QCheckBox(Form)
         self.AllSheets.setObjectName("AllSheets")
         self.gridLayout.addWidget(self.AllSheets, 2, 0, 1, 1)
+        # self.AllSheets.stateChanged.connect(self.changeallsheets)
 
 
         self.filelist = QtWidgets.QListView(Form)
         self.filelist.setObjectName("filelist")
         self.gridLayout.addWidget(self.filelist, 1, 0, 1, 1)
-
+        self.filelist.clicked.connect(self.filelist_checkItem)
 
         # 计算按钮
         self.Calc = QtWidgets.QPushButton(Form)
@@ -97,16 +101,49 @@ class Ui_Form(object):
         self.AllSheets.setText(_translate("Form", "AllSheets"))
         self.Calc.setText(_translate("Form", "计算"))
 
+
     def Open_button_click(self):
+        global sheets_input
+        # print("Open_button_click begin")
         fileName, filetype = QtWidgets.QFileDialog.getOpenFileName(self.Open, "选择文件", "/", "All Files (*)")
         self.lineEdit.setText(fileName)
 
+        sheets_input = load_workbook(fileName)
+        print(sheets_input)
+        sheets_total = sheets_input.sheetnames
+
+        listModel = QtCore.QStringListModel()
+        listModel.setStringList(sheets_total)
+        self.filelist.setModel(listModel)
+        # print("Open_button_click done")
+
+    def filelist_checkItem(self, index):
+        # print("filelist_checkItem begin")
+        global sheets_input
+        global sheet_clicked_select
+
+        sheet_clicked_select = sheets_input.worksheets[index.row()]
+        # print("filelist_checkItem done")
+
     def Calc_button_click(self):
+        # print("Calc_button_click begin")
         # 路径
+        global sheets_input
+        global sheet_clicked_select
         excel_dir = self.lineEdit.text()
-        handle_excel(excel_dir)
-        # 提示计算结果完成
-        #QMessageBox.about(self, "标题", "关于对话框消息正文")
+
+        if self.AllSheets.checkState() == QtCore.Qt.Checked:
+            for sheet_sel in sheets_input:
+                handle_excel(sheet_sel)
+        else:
+            print(sheet_clicked_select)
+            handle_excel(sheet_clicked_select)
+
+        os.remove(excel_dir)
+        sheets_input.save(excel_dir)
+        # print("Calc_button_click done")
+
+
 
 if __name__=="__main__":
     app=QtWidgets.QApplication(sys.argv)
